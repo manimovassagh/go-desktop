@@ -8,7 +8,6 @@ import (
 )
 
 func main() {
-	
 	myApp := app.New()
 	myWindow := myApp.NewWindow("To-Do List")
 
