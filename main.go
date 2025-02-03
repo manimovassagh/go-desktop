@@ -3,42 +3,34 @@ package main
 import (
 	"database/sql"
 	"log"
+	"os"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/therecipe/qt/widgets"
+	  "github.com/mattn/go-sqlite3"
 )
 
 func main() {
-	myApp := app.New()
-	myWindow := myApp.NewWindow("To-Do List")
-
-	// Connect to SQLite database
+	// Connect to SQLite
 	db, err := sql.Open("sqlite3", "./todo.db")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	// Create table if it doesn't exist
+	// Create table if not exists
 	createTableSQL := `CREATE TABLE IF NOT EXISTS tasks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		task TEXT NOT NULL
-	);`
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task TEXT NOT NULL
+    );`
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Use slice to store tasks
+	// Load tasks from the database
 	var tasks []string
-
-	// Function to load tasks from database into tasks slice
 	loadTasks := func() {
-		tasks = nil // Clear the previous list
+		tasks = nil
 		rows, err := db.Query("SELECT task FROM tasks")
 		if err != nil {
 			log.Fatal(err)
@@ -54,56 +46,57 @@ func main() {
 		}
 	}
 
-	// Load initial tasks from the database
+	// Initialize the Qt application
+	app := widgets.NewQApplication(len(os.Args), os.Args)
+
+	// Window Setup
+	window := widgets.NewQMainWindow(nil, 0)
+	window.SetWindowTitle("Todo List")
+	window.SetMinimumSize2(400, 600)
+
+	// Layout
+	layout := widgets.NewQVBoxLayout()
+
+	// Task Entry
+	taskEntry := widgets.NewQLineEdit(nil)
+	layout.AddWidget(taskEntry, 0, 0)
+
+	// Task List
+	taskList := widgets.NewQListWidget(nil)
+	layout.AddWidget(taskList, 0, 0)
+
+	// Load tasks
 	loadTasks()
+	for _, task := range tasks {
+		taskList.AddItem(task)
+	}
 
-	// Task list with tasks from the tasks slice
-	taskList := widget.NewList(
-		func() int { return len(tasks) }, // Returns number of tasks
-		func() fyne.CanvasObject { return widget.NewLabel("") }, // Creates new label for each task
-		func(i widget.ListItemID, obj fyne.CanvasObject) {
-			obj.(*widget.Label).SetText(tasks[i]) // Sets task text to the label
-		},
-	)
-
-	// Input field and add button
-	taskEntry := widget.NewEntry()
-	taskEntry.SetPlaceHolder("Enter new task...")
-
-	// Function to add task and persist it in the database
-	addTask := func() {
-		if taskEntry.Text != "" {
-			// Insert the new task into the SQLite database
-			_, err := db.Exec("INSERT INTO tasks (task) VALUES (?)", taskEntry.Text)
+	// Add Button
+	addButton := widgets.NewQPushButton2("Add Task", nil)
+	addButton.ConnectClicked(func(bool) {
+		if taskEntry.Text() != "" {
+			// Insert the new task into the database
+			_, err := db.Exec("INSERT INTO tasks (task) VALUES (?)", taskEntry.Text())
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			// Reload the tasks from the database and update the list
+			// Reload tasks and update UI
 			loadTasks()
-			taskList.Refresh() // Refresh the UI list to show the updated tasks
-			taskEntry.SetText("") // Clear the input field
+			taskList.Clear()
+			for _, task := range tasks {
+				taskList.AddItem(task)
+			}
+			taskEntry.Clear()
 		}
-	}
-
-	// Add button with better styling
-	addButton := widget.NewButtonWithIcon("Add Task", theme.ConfirmIcon(), func() {
-		addTask()
 	})
-	addButton.Importance = widget.HighImportance // Makes it more visually prominent
+	layout.AddWidget(addButton, 0, 0)
 
-	// Allow "Enter" to add task
-	taskEntry.OnSubmitted = func(string) {
-		addTask()
-	}
+	// Set Layout and Show Window
+	container := widgets.NewQWidget(nil, 0)
+	container.SetLayout(layout)
+	window.SetCentralWidget(container)
 
-	// Layout with spacing
-	myWindow.SetContent(container.NewVBox(
-		taskEntry,
-		addButton,
-		taskList,
-	))
-
-	myWindow.Resize(fyne.NewSize(400, 600)) // Set window size
-	myWindow.ShowAndRun()
+	window.Show()
+	app.Exec()
 }
