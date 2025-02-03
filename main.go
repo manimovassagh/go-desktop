@@ -33,28 +33,36 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Fetch tasks from database
+	// Use slice to store tasks
 	var tasks []string
-	rows, err := db.Query("SELECT task FROM tasks")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var task string
-		if err := rows.Scan(&task); err != nil {
+	// Function to load tasks from database into tasks slice
+	loadTasks := func() {
+		tasks = nil // Clear the previous list
+		rows, err := db.Query("SELECT task FROM tasks")
+		if err != nil {
 			log.Fatal(err)
 		}
-		tasks = append(tasks, task)
+		defer rows.Close()
+
+		for rows.Next() {
+			var task string
+			if err := rows.Scan(&task); err != nil {
+				log.Fatal(err)
+			}
+			tasks = append(tasks, task)
+		}
 	}
 
-	// Task list with tasks from the database
+	// Load initial tasks from the database
+	loadTasks()
+
+	// Task list with tasks from the tasks slice
 	taskList := widget.NewList(
-		func() int { return len(tasks) },
-		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func() int { return len(tasks) }, // Returns number of tasks
+		func() fyne.CanvasObject { return widget.NewLabel("") }, // Creates new label for each task
 		func(i widget.ListItemID, obj fyne.CanvasObject) {
-			obj.(*widget.Label).SetText(tasks[i])
+			obj.(*widget.Label).SetText(tasks[i]) // Sets task text to the label
 		},
 	)
 
@@ -71,10 +79,10 @@ func main() {
 				log.Fatal(err)
 			}
 
-			// Add task to the list and refresh the UI
-			tasks = append(tasks, taskEntry.Text)
-			taskEntry.SetText("")
-			taskList.Refresh() // Update UI
+			// Reload the tasks from the database and update the list
+			loadTasks()
+			taskList.Refresh() // Refresh the UI list to show the updated tasks
+			taskEntry.SetText("") // Clear the input field
 		}
 	}
 
